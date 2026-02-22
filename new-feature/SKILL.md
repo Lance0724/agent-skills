@@ -1,6 +1,13 @@
 ---
 name: new-feature
-description: Use this skill to standardize the process of adding a new feature. This workflow covers requirements gathering, solution specification, and execution planning. Trigger this skill when the user wants to start a new feature or feature request.
+description: |
+  Standardized workflow for implementing new features.
+  - Process: Requirements -> Specification -> Planning -> Execution.
+  - Constraint: Ensure all documentation and comments are in Chinese.
+  - Triggers: "new feature", "add feature", "dev plan".
+version: 1.1.0
+author: lance
+license: MIT
 ---
 
 # 新功能开发工作流

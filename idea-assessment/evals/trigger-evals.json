@@ -1,0 +1,18 @@
+[
+  {"query": "评估离线模式是否值得投入。", "should_trigger": true},
+  {"query": "这个产品想法有没有真实用户价值？先不要开发。", "should_trigger": true},
+  {"query": "Compare options and make a go or no-go decision for building an internal search tool.", "should_trigger": true},
+  {"query": "我们是否应该自研还是购买通知平台？请做证据分析。", "should_trigger": true},
+  {"query": "帮我验证这个创业点子的问题是否真实。", "should_trigger": true},
+  {"query": "assess this proposal before we commit engineering time", "should_trigger": true},
+  {"query": "研究增加付费订阅层的支持和反对证据。", "should_trigger": true},
+  {"query": "这个方案投入可能很大，先比较概念选项和不做的代价。", "should_trigger": true},
+  {"query": "实现离线模式，从需求文档开始。", "should_trigger": false},
+  {"query": "登录页空密码会崩溃，请修复。", "should_trigger": false},
+  {"query": "审查这个 PR 的安全风险。", "should_trigger": false},
+  {"query": "为通知系统设计数据库表和 API。", "should_trigger": false},
+  {"query": "把这份明确需求拆成开发任务。", "should_trigger": false},
+  {"query": "解释当前推荐算法的工作原理。", "should_trigger": false},
+  {"query": "重构缓存模块但保持行为不变。", "should_trigger": false},
+  {"query": "执行已经批准的账号注销功能开发计划。", "should_trigger": false}
+]

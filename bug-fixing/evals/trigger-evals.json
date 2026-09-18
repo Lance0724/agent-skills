@@ -1,0 +1,18 @@
+[
+  {"query": "登录按钮点击后直接崩溃，帮我定位并修复。", "should_trigger": true},
+  {"query": "这个版本出现回归，订单总价少算了运费。", "should_trigger": true},
+  {"query": "Fix the null pointer bug in the auth callback and verify the reproduction.", "should_trigger": true},
+  {"query": "生产环境偶发重复扣款，请先诊断根因再修。", "should_trigger": true},
+  {"query": "列表分页第二页重复第一条数据，预期不应该重复。", "should_trigger": true},
+  {"query": "debug why the worker hangs after receiving SIGTERM", "should_trigger": true},
+  {"query": "修复升级后配置文件无法加载的问题，并记录验证结果。", "should_trigger": true},
+  {"query": "接口返回 200 但响应体字段完全错误，请调查现有行为。", "should_trigger": true},
+  {"query": "新增 PDF 导出功能，从需求和技术方案开始。", "should_trigger": false},
+  {"query": "评估离线模式是否值得投入。", "should_trigger": false},
+  {"query": "审查这个 PR 是否有 SQL 注入风险。", "should_trigger": false},
+  {"query": "重构 UserService，但不要改变现有行为。", "should_trigger": false},
+  {"query": "解释缓存失效流程是怎么工作的。", "should_trigger": false},
+  {"query": "给现有解析器补充更多测试覆盖率。", "should_trigger": false},
+  {"query": "设计新的团队邀请 API。", "should_trigger": false},
+  {"query": "比较三个日志平台并给出购买建议。", "should_trigger": false}
+]

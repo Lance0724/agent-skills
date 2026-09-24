@@ -6,7 +6,7 @@ license: MIT
 compatibility: 需要 Python 3.10 或更高版本；状态管理脚本仅使用标准库。
 metadata:
   author: lance
-  version: "2.0.0"
+  version: "2.1.0"
 ---
 
 # 新功能开发工作流
@@ -39,9 +39,12 @@ metadata:
 ```bash
 python3 /实际技能路径/new-feature/scripts/tasks.py --help
 python3 /实际技能路径/new-feature/scripts/tasks.py show .ai/doc/example-feature
+python3 /实际技能路径/new-feature/scripts/tasks.py show .ai/doc/example-feature --format text
 ```
 
 将 `/实际技能路径/` 替换为本次加载的技能所在目录，不假定技能在目标项目内，也不把脚本复制到目标项目。所有命令的目录参数都是功能产物目录。
+
+默认 `show` 输出完整 JSON，供 Agent 读取；向用户展示进度时使用 `show --format text`，在本地即时生成概览、任务状态、异常详情和下一步。该视图只读，不调用模型、不联网、不写文件，不能作为第二份可维护的任务状态。
 
 ## 第一步：需求
 

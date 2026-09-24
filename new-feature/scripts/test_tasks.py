@@ -53,6 +53,111 @@ class TaskLifecycleTests(unittest.TestCase):
                   "--observed", "非法输入被拒绝，合法输入正常")
         self.call("complete", task)
 
+    def show_text(self):
+        result = subprocess.run([sys.executable, str(CLI), "show", str(self.directory),
+                                 "--format", "text"], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def test_text_view_is_deterministic_readonly_and_preserves_json(self):
+        self.planning()
+        self.add()
+        self.call("advance", "--reason", "通过")
+        self.finish("TASK-001")
+        self.call("hold", "--reason", "等待验收确认")
+        # 读取不能依赖写锁，也不能写回 JSON 或生成另一份状态。
+        (self.directory / ".tasks.lock").touch()
+        before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.directory.iterdir()}
+        first = self.show_text()
+        self.assertEqual(self.show_text(), first)
+        self.assertEqual(self.state(), self.call("show", "--format", "json"))
+        after = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.directory.iterdir()}
+        self.assertEqual(after, before)
+        self.assertIn("等待验收确认", first)
+        self.assertNotIn("可开始", first)
+        self.assertIn("完成判定：尚未满足", first)
+
+    def test_text_view_reports_mixed_states_and_actual_failed_evidence(self):
+        self.planning(("AC-001", "AC-002", "AC-003", "AC-004"),
+                      ("DES-001", "DES-002", "DES-003", "DES-004"))
+        self.add()
+        self.add("TASK-002", "AC-002", "DES-002", ("TASK-001",))
+        self.add("TASK-003", "AC-003", "DES-003", ("TASK-002",))
+        self.add("TASK-004", "AC-003", "DES-003", ("TASK-003",))
+        self.add("TASK-005", "AC-004", "DES-004", ("TASK-002",))
+        self.add("TASK-006")
+        self.call("advance", "--reason", "通过")
+        self.finish("TASK-001")
+        self.finish("TASK-002")
+        self.call("start", "TASK-003")
+        self.call("verify", "TASK-003", "--result", "failed", "--check", "刷新后恢复排序",
+                  "--observed", "关键词恢复正常\n排序恢复为默认值", "--evidence", "logs/browser.txt")
+        self.call("block", "TASK-005", "--reason", "缺少连接配置")
+        self.call("skip", "TASK-006", "--reason", "无历史数据")
+        output = self.show_text()
+        for label, count in (("已完成", 2), ("进行中", 1), ("待处理", 1), ("已阻塞", 1), ("已跳过", 1)):
+            self.assertRegex(output, rf"{label}\s+{count}\b")
+        self.assertIn("验收覆盖：已完成任务覆盖 2/4", output)
+        self.assertIn("设计覆盖：已完成任务覆盖 2/4", output)
+        for observation in ("刷新后恢复排序", "关键词恢复正常", "排序恢复为默认值",
+                            "logs/browser.txt", "缺少连接配置", "无历史数据"):
+            self.assertIn(observation, output)
+        positions = [output.index(f"TASK-{index:03d}  ") for index in range(1, 7)]
+        self.assertEqual(positions, sorted(positions))
+        self.assertNotIn("可开始 TASK-004", output)
+        self.assertIn("TASK-003（进行中）", output)
+
+    def test_text_view_respects_phase_hold_and_skipped_dependency(self):
+        self.planning()
+        self.add()
+        self.add("TASK-002", depends=("TASK-001",))
+        self.assertNotIn("可开始", self.show_text())
+        self.call("advance", "--reason", "通过")
+        self.assertIn("可开始 TASK-001", self.show_text())
+        self.assertNotIn("可开始 TASK-002", self.show_text())
+        self.call("hold", "--reason", "部署窗口未开放")
+        held = self.show_text()
+        self.assertNotIn("可开始", held)
+        self.assertIn("resume", held.split("下一步\n", 1)[1])
+        self.call("resume")
+        self.call("skip", "TASK-001", "--reason", "需重新评估")
+        skipped = self.show_text()
+        self.assertNotIn("可开始 TASK-002", skipped)
+        self.assertIn("TASK-001（已跳过）", skipped)
+
+    def test_text_view_does_not_confuse_terminal_tasks_with_coverage(self):
+        self.planning(("AC-001", "AC-002"), ("DES-001", "DES-002"))
+        self.add()
+        self.add("TASK-002", "AC-002", "DES-002")
+        self.call("advance", "--reason", "通过")
+        self.finish("TASK-001")
+        self.call("skip", "TASK-002", "--reason", "暂不执行")
+        output = self.show_text()
+        self.assertIn("验收覆盖：已完成任务覆盖 1/2", output)
+        self.assertIn("设计覆盖：已完成任务覆盖 1/2", output)
+        self.assertIn("完成判定：尚未满足", output)
+        attention = output.split("需要关注\n", 1)[1].split("下一步\n", 1)[0]
+        self.assertIn("AC-002", attention)
+        self.assertIn("DES-002", attention)
+
+    def test_text_view_distinguishes_empty_ready_and_completed_workflows(self):
+        initial = self.show_text()
+        self.assertIn("总计 0 项", initial)
+        self.assertIn("验收覆盖：尚未登记", initial)
+        self.assertIn("完成判定：尚未满足", initial)
+        self.planning()
+        self.add()
+        self.call("advance", "--reason", "通过")
+        self.finish("TASK-001")
+        ready = self.show_text()
+        self.assertIn("完成判定：状态门槛已满足", ready)
+        self.assertIn("advance", ready.split("下一步\n", 1)[1])
+        self.call("advance", "--reason", "验收完成")
+        completed = self.show_text()
+        self.assertIn("阶段：已完成（completed）", completed)
+        self.assertIn("完成判定：已完成", completed)
+        self.assertNotIn("可开始", completed)
+
     def test_evidence_dependency_and_phase_gates(self):
         self.rejected("advance", "--acceptance", "AC-001", "--reason", "审查")
         self.planning()

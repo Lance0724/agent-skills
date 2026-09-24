@@ -295,6 +295,159 @@ def change(state, args, directory):
             del state["gates"]["execution"]
 
 
+def _render_text(state, directory):
+    """从已校验的状态生成只读视图，不读取证据或执行验证。"""
+    status_labels = {"completed": "已完成", "in_progress": "进行中", "pending": "待处理",
+                     "blocked": "已阻塞", "skipped": "已跳过"}
+    phase_labels = {"requirements": "需求", "specification": "规范", "planning": "计划",
+                    "execution": "执行中", "completed": "已完成"}
+    mode_labels = {"lightweight": "轻量", "standard": "标准"}
+    result_labels = {"not_run": "未运行", "passed": "通过", "failed": "失败，需修复后重新验证"}
+    tasks = state["tasks"]
+    by_id = {task["id"]: task for task in tasks}
+    counts = dict.fromkeys(status_labels, 0)
+    completed_refs = {"acceptance_refs": set(), "design_refs": set()}
+    for task in tasks:
+        counts[task["status"]] += 1
+        if task["status"] == "completed":
+            for field in completed_refs:
+                completed_refs[field].update(task[field])
+    missing = {}
+    for label, field, registry in (("验收", "acceptance_refs", "acceptance_ids"),
+                                   ("设计", "design_refs", "design_ids")):
+        missing[label] = [ref for ref in state[registry] if ref not in completed_refs[field]]
+    waiting = {task["id"]: [dep for dep in task["depends_on"] if by_id[dep]["status"] != "completed"]
+               for task in tasks}
+    phase, mode = state["phase"], state["mode"]
+    unfinished = counts["pending"] + counts["in_progress"] + counts["blocked"]
+    can_finish = (phase == "execution" and not state["blocker"] and not unfinished
+                  and not any(missing.values()))
+    lines = []
+
+    def field(label, value, indent=""):
+        parts = str(value).splitlines() or [""]
+        lines.append(f"{indent}{label}：{parts[0]}")
+        lines.extend(f"{indent}  {part}" for part in parts[1:])
+
+    field("功能", directory.absolute().name)
+    field("目录", directory)
+    lines.append("")
+    field("阶段", f"{phase_labels[phase]}（{phase}）")
+    field("模式", f"{mode_labels[mode]}（{mode}）")
+    field("版本", state["revision"])
+    field("流程阻塞", state["blocker"] or "无")
+    lines.extend(["", "任务概况"])
+    summary = " · ".join(f"{label} {counts[status]}" for status, label in status_labels.items())
+    lines.append(f"  总计 {len(tasks)} 项：{summary}")
+    for label, registry in (("验收", "acceptance_ids"), ("设计", "design_ids")):
+        total = len(state[registry])
+        coverage = f"已完成任务覆盖 {total - len(missing[label])}/{total} 项" if total else "尚未登记"
+        field(f"{label}覆盖", coverage, "  ")
+    lines.extend(["", "任务列表"])
+    if not tasks:
+        lines.append("  暂无任务")
+    for index, task in enumerate(tasks):
+        if index:
+            lines.append("")
+        task_id, status = task["id"], task["status"]
+        title = " ".join(task["title"].splitlines())
+        lines.append(f"  {task_id}  {status_labels[status]}  {title}")
+        dependencies = "、".join(f"{dep}（{status_labels[by_id[dep]['status']]}）" for dep in task["depends_on"])
+        field("依赖", dependencies or "无", "            ")
+        field("验证", result_labels[task["verification"]["result"]], "            ")
+        if status == "pending":
+            constraints = []
+            if state["blocker"]:
+                constraints.append("流程阻塞尚未解除")
+            if phase != "execution":
+                constraints.append("尚未进入执行阶段")
+            if waiting[task_id]:
+                constraints.append("依赖尚未完成：" + "、".join(waiting[task_id]) + "（跳过不满足依赖）")
+            field("启动条件", "；".join(constraints) if constraints else "已满足，可开始", "            ")
+        if status in ("blocked", "skipped"):
+            field("阻塞原因" if status == "blocked" else "跳过原因", task["reason"], "            ")
+
+    lines.extend(["", "需要关注"])
+    concerns = False
+    if state["blocker"]:
+        field("流程阻塞", state["blocker"], "  ")
+        concerns = True
+    for task in tasks:
+        check = task["verification"]
+        if check["result"] == "failed":
+            lines.append(f"  {task['id']} · 最近验证失败")
+            field("执行", check["command"], "    ")
+            field("观察", check["observed"], "    ")
+            field("证据", "、".join(check["evidence_refs"]) or "未附加引用", "    ")
+            concerns = True
+        if task["status"] == "blocked":
+            lines.append(f"  {task['id']} · 任务阻塞")
+            field("原因", task["reason"], "    ")
+            concerns = True
+    for label, refs in missing.items():
+        if refs:
+            field(f"尚未被已完成任务覆盖的{label}", "、".join(refs), "  ")
+            concerns = True
+    if not concerns:
+        lines.append("  无失败验证、阻塞或已登记编号的完成覆盖缺口")
+
+    steps = []
+    if state["blocker"]:
+        steps.append("先按记录条件解决流程阻塞并 resume；解除前不开始新任务或推进阶段。")
+    elif phase == "requirements":
+        steps.append("完善 requirements.md，审查需求门槛后用 advance 登记全部验收编号。")
+    elif phase == "specification":
+        steps.append("完善 specification.md，审查规范门槛后用 advance 登记全部设计编号。")
+    elif phase == "planning":
+        steps.append("审查任务覆盖、依赖及验证计划；计划门槛满足后用 advance 进入执行阶段。")
+    elif phase == "completed":
+        steps.append("流程已完成，无待执行任务。")
+    else:
+        for task in tasks:
+            task_id, status = task["id"], task["status"]
+            if status == "in_progress":
+                result = task["verification"]["result"]
+                if result == "failed":
+                    steps.append(f"修复 {task_id}，重新验证通过后完成任务。")
+                elif result == "passed":
+                    steps.append(f"{task_id} 已记录通过验证；确认实现未再变动后可 complete。")
+                else:
+                    steps.append(f"继续实施 {task_id} 并实际验证，记录结果后再完成任务。")
+            elif status == "blocked":
+                steps.append(f"按记录条件解除 {task_id} 的阻塞；unblock 后仍需检查依赖再 start。")
+            elif status == "pending":
+                dependencies = waiting[task_id]
+                if any(by_id[dep]["status"] == "skipped" for dep in dependencies):
+                    steps.append(f"{task_id} 有已跳过的依赖，不满足启动条件；先重新评估依赖计划。")
+                elif dependencies:
+                    steps.append(f"等待 {'、'.join(dependencies)} 完成后，再开始 {task_id}。")
+                else:
+                    steps.append(f"可开始 {task_id}。")
+        if can_finish:
+            steps.append("状态门槛已满足；人工确认实际验收和文档一致后，用 advance 完成流程。")
+        elif not unfinished and any(missing.values()):
+            steps.append("仍有完成覆盖缺口；重新评估相关跳过任务或补充任务并实际验证。")
+    lines.extend(["", "下一步"])
+    lines.extend(f"  {index}. {step}" for index, step in enumerate(steps, 1))
+    lines.append("")
+    if phase == "completed":
+        field("完成判定", "已完成（按已记录状态）")
+    elif can_finish:
+        field("完成判定", "状态门槛已满足，待人工确认并推进阶段")
+    else:
+        field("完成判定", "尚未满足")
+        if phase != "execution":
+            lines.append("  尚未进入执行阶段。")
+        if state["blocker"]:
+            lines.append("  流程阻塞尚未解除。")
+        if unfinished:
+            lines.append(f"  仍有 {unfinished} 项任务未结束。")
+        if any(missing.values()):
+            lines.append("  部分验收或设计尚未被已完成任务覆盖。")
+    lines.extend(["", "说明：覆盖仅按已完成任务的编号关联计算，不代表脚本已判断产品行为正确。"])
+    return "\n".join(lines)
+
+
 def parser():
     cli = argparse.ArgumentParser(description=__doc__)
     commands = cli.add_subparsers(dest="command", required=True)
@@ -302,6 +455,9 @@ def parser():
                  "verify", "complete", "skip", "reopen", "advance", "mode", "hold", "resume", "replan"):
         command = commands.add_parser(name)
         command.add_argument("directory", type=Path, help="功能产物目录，不是技能目录")
+        if name == "show":
+            command.add_argument("--format", choices=("json", "text"), default="json",
+                                 help="输出格式：json 完整状态（默认），text 本地只读摘要")
         if name not in ("init", "show", "validate"):
             command.add_argument("--expect-revision", type=int, help="拒绝基于过期版本更新")
         if name in ("init", "mode"):
@@ -357,6 +513,9 @@ def main(argv=None):
                     change(state, args, directory)
                     state["revision"] += 1
                 save(path, state)
+        if args.command == "show" and args.format == "text":
+            print(_render_text(state, args.directory))
+            return 0
         output = state if args.command == "show" else {
             "ok": True, "phase": state["phase"], "mode": state["mode"],
             "revision": state["revision"], "task_count": len(state["tasks"]),

@@ -1,67 +1,106 @@
 ---
 name: new-feature
-description: |
-  Standardized workflow for implementing new features.
-  - Process: Requirements -> Specification -> Planning -> Execution.
-  - Constraint: Ensure all documentation and comments are in Chinese.
-  - Triggers: "new feature", "add feature", "dev plan".
-version: 1.1.0
-author: lance
+description: >
+  当用户要求新增功能、实现新需求、制定开发计划，或希望按“需求、规范、计划、执行”推进开发时，使用此技能；即使用户没有直接说“新功能”也应使用。英文请求中出现 “new feature”“add feature”“dev plan” 或表达同类意图时也应使用。适用于需要形成需求文档、技术规范、任务计划并完成实现验证的工作；不用于纯缺陷修复、代码审查、一般问答或不改变行为的重构。
 license: MIT
+compatibility: 需要 Python 3.10 或更高版本；状态管理脚本仅使用标准库。
+metadata:
+  author: lance
+  version: "2.1.0"
 ---
 
 # 新功能开发工作流
 
-此技能指导您完成开发新功能的标准化流程，确保所有需求、规范和测试策略都已记录。
+按“需求、规范、计划、执行”交付新功能。`requirements.md` 和 `specification.md` 保存内容；`tasks.json` 是任务、阶段、模式、阻塞和验证状态的唯一数据源。
 
-**重要规则**：
-1.  所有生成的文档（`requires.md`, `specification.md`, `TODO.md`）的内容**必须使用中文**编写。
-2.  所有生成的代码中的**注释（comments）必须使用中文**编写。
-3.  文件名和目录名使用英文 kebab-case (例如 `new-user-login`)。
+## 核心规则
 
-## 流程概览
+1. 文档正文、任务标题、原因和新增代码注释使用中文；代码标识符、命令、文件名和枚举遵循项目约定。
+2. 功能目录使用英文 kebab-case：`.ai/doc/[feature-name]/`。
+3. 先调查现有代码、文档、测试和约定，只询问无法从仓库确认且实质影响范围、行为或技术取舍的问题。
+4. 保留 `REQ- → AC- → DES- → TASK-` 追踪关系；登记全部验收和设计编号，不得为了通过覆盖检查漏登编号。
+5. **状态只通过 `scripts/tasks.py` 修改**。禁止手改 `tasks.json`、临时生成更新脚本、维护 `TODO.md` 或在 Markdown 中勾选进度。Markdown 可以描述标准和证据，不得另存当前状态。
+6. 由主 Agent 统一写状态。子 Agent 返回结果与证据，不直接写同一份 JSON；独立代码任务可以并行，但修改范围重叠或有依赖的任务必须串行。
+7. 脚本仅校验结构和状态转换，不能判断证据真假、自动执行验证或证明产品正确。不得把脚本成功当作功能验收通过。
 
-1.  **初始化**：确定功能名称（必须使用 kebab-case，例如 `new-user-login`），创建目录 `.ai/doc/[feature-name]/`。
-2.  **需求收集**：讨论并明确需求（含验收标准），**必须使用中文**编写，然后保存到 `.ai/doc/[feature-name]/requires.md`。
-3.  **方案规范**：讨论并确定技术解决方案（含测试策略），**必须使用中文**编写，然后保存到 `.ai/doc/[feature-name]/specification.md`。
-4.  **执行计划**：根据规范创建详细计划，**必须使用中文**编写，然后保存到 `.ai/doc/[feature-name]/TODO.md`。
-5.  **执行跟踪**：随着进展更新 `.ai/doc/[feature-name]/TODO.md`，并在执行前**必须**阅读设计文档。
+## 文档深度
 
-## 第一步：需求收集
+调查后通过 `init --mode` 选择模式，并记录理由；不确定时使用 `standard`。
 
-首先与用户讨论功能请求。提出澄清性问题以了解范围、用户故事、验收标准和约束条件。
+- `lightweight`：单一且边界清晰的模块；不改持久化数据结构、公共接口、权限或安全边界；不涉及外部系统、迁移、兼容策略、独立发布或复杂回滚；验收标准少、风险低且无设计阻塞。
+- `standard`：任一轻量条件不满足时使用。
+- 两种模式都保留两个 Markdown 文档和一份 `tasks.json`，不跳过阶段门槛或证据。轻量模式可简写，不适用章节写明原因。
+- `mode` 命令记录切换理由；可升级为标准模式，降级仅限需求、规范和计划阶段。升级后先补全设计；范围变化时执行 `replan`，不能沿用旧完成状态。
 
-一旦需求明确：
-1.  确认功能名称并创建对应的目录（如果不存在）。
-2.  参考下面的模板创建 `requires.md`。**注意：填写内容必须是中文。**
+## 固定工具入口
 
-**模板参考**：`references/requirements-template.md`
+首次管理状态前阅读 [状态管理说明](references/task-management.md)，以其中的命令和字段契约为准。
 
-## 第二步：方案规范
+```bash
+python3 /实际技能路径/new-feature/scripts/tasks.py --help
+python3 /实际技能路径/new-feature/scripts/tasks.py show .ai/doc/example-feature
+python3 /实际技能路径/new-feature/scripts/tasks.py show .ai/doc/example-feature --format text
+```
 
-讨论技术方法。考虑架构、数据结构、API 变更、UI/UX 以及**测试策略**。
+将 `/实际技能路径/` 替换为本次加载的技能所在目录，不假定技能在目标项目内，也不把脚本复制到目标项目。所有命令的目录参数都是功能产物目录。
 
-一旦方案达成一致：
-1.  在功能目录中创建 `specification.md`。
-2.  参考下面的模板。**注意：填写内容必须是中文。**
+默认 `show` 输出完整 JSON，供 Agent 读取；向用户展示进度时使用 `show --format text`，在本地即时生成概览、任务状态、异常详情和下一步。该视图只读，不调用模型、不联网、不写文件，不能作为第二份可维护的任务状态。
 
-**模板参考**：`references/specification-template.md`
+## 第一步：需求
 
-## 第三步：执行计划
+1. 调查相关代码和相似功能，明确目标、范围、非目标、约束与可观察验收标准。
+2. 使用 `init` 创建 `tasks.json`，阶段初始为 `requirements`；续接已有工作先 `show`，不要重新初始化。
+3. 按 [需求模板](references/requirements-template.md) 创建 `requirements.md`。文档只定义内容，不记录阶段或任务状态。
+4. 存在阻塞问题时，用 `hold --reason` 记录问题和解除条件；解决后 `resume`。
+5. 检查下列门槛后，使用 `advance --acceptance AC-001 AC-002 --reason ...` 登记全部验收编号并进入 `specification`。
 
-将实施工作分解为具体任务。
+### 完成条件
 
-1.  在功能目录中创建 `TODO.md`。
-2.  列出所有任务并跟踪进度。**注意：填写内容必须是中文。**
+- 目标、用户价值、范围与非目标明确。
+- 需求和验收编号唯一，验收标准可观察、可验证。
+- 约束、依赖和边界条件已记录，无阻塞问题。
 
-**模板参考**：`references/todo-template.md`
+## 第二步：规范
 
-## 第四步：执行与跟踪
+1. 阅读 `requirements.md`，调查受影响实现，按 [规范模板](references/specification-template.md) 创建 `specification.md`。
+2. 用 `DES-` 编号关联 `REQ-`、`AC-`，确定影响范围、接口、数据、边界、风险以及适用的兼容、迁移和回滚策略。
+3. 为每条验收标准定义实际可运行的命令或场景和预期结果。
+4. 检查门槛后，使用 `advance --design DES-001 DES-002 --reason ...` 登记全部设计编号并进入 `planning`。
 
-**关键规则**：在开始编写任何代码之前，你必须先读取并理解 `specification.md` 中的设计细节和测试策略。
+### 完成条件
 
-在实施功能时：
-1.  **每次**开始一个新的任务项前，先确认 `TODO.md` 的状态。
-2.  编写代码后，**必须**运行相关测试以验证是否满足验收标准。
-3.  **特别注意**：生成的代码中所有注释（comments）必须使用中文编写，以便于理解和维护。
-4.  更新 `TODO.md`，将任务标记为已完成，并简要备注结果（中文）。
+- 全部需求和验收标准都有设计。
+- 关键取舍、风险和边界问题已有结论，影响范围可定位。
+- 每条验收标准都有可执行验证方案，无阻塞实施的问题。
+
+## 第三步：计划
+
+1. 阅读两个 Markdown 文档和 `tasks.json`，按依赖顺序用 `add` 添加任务。
+2. 每个任务必须有 `TASK-` 编号、标题、设计与验收关联、修改范围、完成条件和验证计划；依赖只能引用已登记任务。
+3. `update` 仅修改待处理任务定义。发布任务只在确有需要时添加，不为填写模板制造任务。
+4. 检查下列门槛后，使用 `advance --reason ...` 进入 `execution`。脚本会拒绝空计划、缺失编号、依赖环和未覆盖的设计或验收标准。
+
+### 完成条件
+
+- 所有设计和验收标准均被任务覆盖。
+- 任务交付结果、完成条件、验证方法和依赖清晰。
+- 没有未说明的阻塞；任务状态无需再抄写到 Markdown。
+
+## 第四步：执行
+
+1. 写代码前读取两个文档及 `show` 的当前状态。用 `start` 开始依赖已完成的任务。
+2. 单个任务阻塞用 `block --reason`，问题解决后 `unblock` 再 `start`；整条流程阻塞用 `hold`，解除用 `resume`。
+3. 按规范实施并实际运行变更路径。根据变更性质选择自动测试、冒烟或人工验证，不为勾选状态编写无价值测试。
+4. 运行后用 `verify --result passed|failed --check ... --observed ...` 记录实际命令或场景和观察结果，可用 `--evidence` 附上日志路径或文档锚点。未运行不能写 `passed`。
+5. 最新验证通过后用 `complete` 完成任务；验证失败时保持进行中，修复并重新验证。通过验证后若又改动实现，必须重新验证，禁止复用旧结果。
+6. 确认不适用的待处理或阻塞任务可用 `skip --reason`；跳过不满足依赖，也不能独自覆盖最终验收。
+7. 已开始或结束任务需修改定义时先 `reopen --reason`。脚本将该任务及全部下游依赖重置为待处理，并清除旧验证；不要只改一个任务而保留下游已完成状态。
+8. 范围或设计改变时先更新 Markdown，再用 `replan --reason` 返回计划阶段，按需重新登记完整编号集、更新任务并重新执行。脚本保留任务定义，但使全部任务的旧状态与验证失效。
+9. 所有工作完成后执行 `validate`，检查门槛，再用 `advance --reason ...` 将流程标为 `completed`。
+
+### 完成条件
+
+- 任务均为 `completed` 或有原因的 `skipped`。
+- 每条验收标准和设计均由验证通过的已完成任务覆盖，跳过不能代替验收。
+- 实际行为符合需求，关键检查已执行，文档与实现一致。
+- 无流程阻塞，JSON 校验通过；只更新 JSON 状态，不再生成进度 Markdown。

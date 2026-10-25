@@ -1,0 +1,66 @@
+[
+  {
+    "query": "给现有后台增加批量导出订单的功能，从需求梳理开始做。",
+    "should_trigger": true
+  },
+  {
+    "query": "实现一个用户通知偏好设置页，并把开发任务拆出来。",
+    "should_trigger": true
+  },
+  {
+    "query": "先为新的团队邀请能力写需求和技术方案，然后落地。",
+    "should_trigger": true
+  },
+  {
+    "query": "帮我制定 webhook 重放功能的 dev plan。",
+    "should_trigger": true
+  },
+  {
+    "query": "Add a new --json output feature to this CLI and implement it end to end.",
+    "should_trigger": true
+  },
+  {
+    "query": "产品要新增按角色展示首页模块的能力，请从验收标准推进到代码实现。",
+    "should_trigger": true
+  },
+  {
+    "query": "我想给搜索结果增加收藏和取消收藏，先看看仓库里的模式再做。",
+    "should_trigger": true
+  },
+  {
+    "query": "不急着写代码，先把新账号注销流程的需求、风险和实施计划确定下来。",
+    "should_trigger": true
+  },
+  {
+    "query": "修复登录接口在 token 为空时抛出的空指针异常。",
+    "should_trigger": false
+  },
+  {
+    "query": "审查这个 PR，重点看权限绕过和 SQL 注入。",
+    "should_trigger": false
+  },
+  {
+    "query": "把 UserService 重构成更小的几个类，但不要改变现有行为。",
+    "should_trigger": false
+  },
+  {
+    "query": "解释一下当前仓库的缓存失效流程是怎么工作的。",
+    "should_trigger": false
+  },
+  {
+    "query": "为现有日期解析函数补充边界测试，不修改产品能力。",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我定位列表接口最近变慢的原因。",
+    "should_trigger": false
+  },
+  {
+    "query": "升级项目里的数据库驱动并修复兼容问题。",
+    "should_trigger": false
+  },
+  {
+    "query": "把变量 userData 重命名为 accountData，并更新全部引用。",
+    "should_trigger": false
+  }
+]
